@@ -7,7 +7,7 @@
 #include "../common/swizzle.h"
 
 #include "texture.h"
-#include "tex_dsdt.h"
+#include "tex_dsdt_rgba.h"
 
 XguMatrix4x4 m_model, m_view, m_proj;
 
@@ -84,7 +84,7 @@ void draw_quad(XguVec4 pos, XguVec4 rot, XguVec4 sca, bool ripple_effect) {
         #include "shaders/ripple_frag.inl"
         
         // We'll move the ripple texture to simulate a water-like effect
-        ripple_move += 0.002f;
+        //ripple_move += 0.002f; // Disable the movement to see what's going on
     }
     else {
         #include "shaders/diffuse_frag.inl"
@@ -134,7 +134,7 @@ int main(void) {
     swizzle_rect(texture_rgba, texture_width, texture_height, alloc_texture, texture_pitch, tex_bytes_per_pixel);
     
     // Allocate the DS/DT texture used to offset each pixel (Xbox uses format G8B8 for this)
-    int dsdt_bytes_per_pixel = 2;
+    int dsdt_bytes_per_pixel = 4; //Use 2 for G8B8 or R6G5B5
     alloc_tex_dsdt = MmAllocateContiguousMemoryEx(tex_dsdt_pitch * tex_dsdt_height, 0, 0x03FFAFFF, 0, PAGE_WRITECOMBINE | PAGE_READWRITE);
     swizzle_rect(tex_dsdt_rg, tex_dsdt_width, tex_dsdt_height, alloc_tex_dsdt, tex_dsdt_pitch, dsdt_bytes_per_pixel);
     
@@ -164,7 +164,8 @@ int main(void) {
     
     // Texture 0 (DS/DT texture)
     p = xgu_set_texture_offset(p, 0, (void *)((uint32_t)alloc_tex_dsdt & 0x03ffffff));
-    p = xgu_set_texture_format(p, 0, 2, false, XGU_SOURCE_COLOR, 2, XGU_TEXTURE_FORMAT_G8B8_SWIZZLED, 1, 9, 9, 0);
+    // Possible tests are: G8B8, R6G5B5 (with tex_dsdt.h), or A8B8G8R8/R8G8B8A8 (with tex_dsdt_rgba.h)
+    p = xgu_set_texture_format(p, 0, 2, false, XGU_SOURCE_COLOR, 2, XGU_TEXTURE_FORMAT_A8B8G8R8_SWIZZLED, 1, 9, 9, 0);
     p = xgu_set_texture_address(p, 0, XGU_WRAP, false, XGU_WRAP, false, XGU_WRAP, false, false);
     p = xgu_set_texture_control0(p, 0, true, 0, 0);
     p = xgu_set_texture_filter(p, 0, 0, XGU_TEXTURE_CONVOLUTION_QUINCUNX, 2, 2, true, true, true, true);
@@ -185,6 +186,7 @@ int main(void) {
     // So to compensate, we scale down the float value in the matrix. If we want to move at most +/-32 pixels in a 512 pixel wide texture,
     // that means 32/512 pixels = 0.0625 (which is the normalized UV value).
     
+    //The right column is actually reversed
     float bumpenv_mat[2*2] = {
         32.0f/(float)texture_width, 0.0,
         0.0, 32.0f/(float)texture_height,
